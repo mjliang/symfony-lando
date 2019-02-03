@@ -21,23 +21,21 @@ name: $(basename "$1")
 recipe: lemp
 config:
   webroot: public
-  database: mariadb
 
 services:
   appserver:
     config:
-      server: nginx.conf
+      vhosts: nginx.conf
 
 tooling:
   sf:
     service: appserver
     description: Run Symfony commands
-    cmd:
-      - bin/console
+    cmd: bin/console
 
 events:
   post-start:
-    appserver: "composer install --working-dir=\$LANDO_MOUNT"
+    - composer install
 
 EOL
 
@@ -48,24 +46,31 @@ server {
     listen   [::]:80 default ipv6only=on;
     server_name  localhost;
 
-    ssl_certificate      /certs/cert.pem;
+    ssl_certificate      /certs/cert.crt;
     ssl_certificate_key  /certs/cert.key;
 
-    root   \${LANDO_WEBROOT};
+    ssl_session_cache    shared:SSL:1m;
+    ssl_session_timeout  5m;
+
+    ssl_ciphers  HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers  on;
+
+    root /app/public;
     index index.php index.html index.htm;
 
     location / {
         # try to serve file directly, fallback to index.php
-        try_files \$uri /index.php\$is_args\$args;
+        try_files $uri /index.php$is_args$args;
     }
 
-    location ~ ^/index\.php(/|\$) {
+    location ~ ^/index\.php(/|$) {
+        fastcgi_index  index.php;
         fastcgi_buffers 256 128k;
         fastcgi_connect_timeout 300s;
         fastcgi_send_timeout 300s;
         fastcgi_read_timeout 300s;
         fastcgi_pass fpm:9000;
-        fastcgi_split_path_info ^(.+\.php)(/.*)\$;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
         include fastcgi_params;
 
         # optionally set the value of the environment variables used in the application
@@ -80,13 +85,21 @@ server {
         # Otherwise, PHP's OPcache may not properly detect changes to
         # your PHP files (see https://github.com/zendtech/ZendOptimizerPlus/issues/126
         # for more information).
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        fastcgi_param DOCUMENT_ROOT \$realpath_root;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         # Prevents URIs that include the front controller. This will 404:
         # http://domain.tld/index.php/some-path
         # Remove the internal directive to allow URIs like this
         internal;
     }
+
+    # return 404 for all other php files not matching the front controller
+    # this prevents access to other php files you don't want to be accessible.
+    #location ~ \.php$ {
+    #    return 404;
+    #}
+
+    #error_log /var/log/nginx/project_error.log;
+    #access_log /var/log/nginx/project_access.log;
 }
 
 EOL
