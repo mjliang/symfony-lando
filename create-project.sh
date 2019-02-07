@@ -10,9 +10,11 @@ if [[ ! -d $1 ]] ; then
     [[ $? -ne 0 ]] && exit 1
 fi
 
-docker run --rm --interactive --tty \
-    --volume $(cd "$1" && pwd):/app \
-    --user $(id -u):$(id -g) \
+docker run --rm -it \
+    -u $(id -u):$(id -g) \
+    -v $(cd "$1" && pwd):/app \
+    -v ${COMPOSER_HOME:-${HOME}/.composer}:/composer \
+    -e COMPOSER_HOME=/composer \
     composer create-project symfony/skeleton .
 [[ $? -ne 0 ]] && exit 1
 
@@ -39,7 +41,7 @@ events:
 
 EOL
 
-cat >$1/nginx.conf <<EOL
+cat >$1/nginx.conf <<'EOL'
 server {
     listen       443 ssl;
     listen       80;
@@ -60,17 +62,17 @@ server {
 
     location / {
         # try to serve file directly, fallback to index.php
-        try_files \$uri /index.php\$is_args\$args;
+        try_files $uri /index.php$is_args$args;
     }
 
-    location ~ ^/index\.php(/|\$) {
+    location ~ ^/index\.php(/|$) {
         fastcgi_index  index.php;
         fastcgi_buffers 256 128k;
         fastcgi_connect_timeout 300s;
         fastcgi_send_timeout 300s;
         fastcgi_read_timeout 300s;
         fastcgi_pass fpm:9000;
-        fastcgi_split_path_info ^(.+\.php)(/.*)\$;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
         include fastcgi_params;
 
         # optionally set the value of the environment variables used in the application
@@ -85,7 +87,7 @@ server {
         # Otherwise, PHP's OPcache may not properly detect changes to
         # your PHP files (see https://github.com/zendtech/ZendOptimizerPlus/issues/126
         # for more information).
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         # Prevents URIs that include the front controller. This will 404:
         # http://domain.tld/index.php/some-path
         # Remove the internal directive to allow URIs like this
