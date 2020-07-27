@@ -26,18 +26,29 @@ config:
 
 services:
   appserver:
+    app_mount: delegated
     config:
       vhosts: nginx.conf
+  node:
+    app_mount: delegated
+    type: node
+    build:
+      - npm install
 
 tooling:
   sf:
     service: appserver
     description: Run Symfony commands
     cmd: bin/console
+  node:
+    service: node
+  npm:
+    service: node
 
 events:
   post-start:
     - composer install
+    - npm install
 
 EOL
 
