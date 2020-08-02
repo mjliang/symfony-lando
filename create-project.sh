@@ -23,12 +23,12 @@ name: $(basename "$1")
 recipe: lemp
 config:
   webroot: public
-
+  vhosts: nginx.conf
+  
 services:
   appserver:
     app_mount: delegated
-    config:
-      vhosts: nginx.conf
+
   node:
     app_mount: delegated
     type: node
